@@ -26,3 +26,5 @@ _ext
 .pydevproject
 *.so
 .vscode/*
+
+*.ipynb

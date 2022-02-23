@@ -53,7 +53,7 @@ def main(cfg: DictConfig) -> Optional[TrainingEngine]:
 
     if cfg.py_func == 'train':
         # Build training engine
-        engine = build_training_engine(cfg, worker, scenario_builder)
+        engine = build_training_engine(cfg, worker, scenario_builder)            
 
         # Run training
         logger.info('Starting training...')
@@ -73,7 +73,6 @@ def main(cfg: DictConfig) -> Optional[TrainingEngine]:
         return None
     else:
         raise NameError(f'Function {cfg.py_func} does not exist')
-
 
 if __name__ == '__main__':
     main()

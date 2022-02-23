@@ -20,7 +20,7 @@ defaults:
   - training_metric: ???
 
 # Mandatory parameters
-py_func: ???                      # function that will be run inside main (can be "train", "test", "cache_data")
+py_func: train                      # function that will be run inside main (can be "train", "test", "cache_data")
 cache_dir: ${oc.env:NUPLAN_EXP_ROOT}/cache        # directory to store all preprocessed dataloader artifacts
 force_feature_computation: false                  # Even if cache exists, recompute features
 resume_training: false   # load the model from the last epoch and resume training

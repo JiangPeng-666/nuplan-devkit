@@ -21,6 +21,9 @@ from nuplan.database.nuplan_db.templates import tables as nuplandb_table_templat
 from nuplan.database.utils.geometry import view_points
 
 logger = logging.getLogger(__name__)
+handler = logging.StreamHandler()
+logger.addHandler(handler)
+logger.setLevel(logging.INFO)
 
 MICROSECONDS_IN_A_SECOND = 1000000
 
@@ -361,3 +364,10 @@ class NuPlanDBExplorer:
         plt.imshow(im)
         plt.scatter(points[0, :], points[1, :], c=coloring, s=dot_size)
         plt.axis('off')
+
+if __name__ == '__main__':
+    # eper = NuPlanDBExplorer(NuPlanDB(version='nuplan_v0.2_mini',data_root='/home/fla/nuplan/dataset'))
+    # eper.list_categories()
+    db = NuPlanDB('nuplan_v0.1_mini', data_root='/home/fla/nuplan/dataset', map_version="nuplan-maps-v0.1")
+    img = db.image[0]
+    im = img.load_as(img_type='pil')
