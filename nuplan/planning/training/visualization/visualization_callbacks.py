@@ -9,6 +9,7 @@ import torch.utils.data
 from nuplan.planning.training.modeling.types import FeaturesType, TargetsType, move_features_type_to_device
 from nuplan.planning.training.preprocessing.feature_collate import FeatureCollate
 from nuplan.planning.training.preprocessing.features.raster import Raster
+from nuplan.planning.training.preprocessing.features.trajectories import Trajectories
 from nuplan.planning.training.preprocessing.features.trajectory import Trajectory
 from nuplan.planning.training.visualization.raster_visualization import get_raster_with_trajectories_as_rgb
 
@@ -112,9 +113,18 @@ class RasterVisualizationCallback(pl.Callback):
         if 'trajectory' not in targets and 'trajectory' not in predictions:
             return
 
+        # if 'raster' in features:
+        #     image_batch = self._get_raster_images_from_batch(
+        #         features['raster'], targets['trajectory'], predictions['trajectory'])
+        # else:
+        #     return
         if 'raster' in features:
-            image_batch = self._get_raster_images_from_batch(
-                features['raster'], targets['trajectory'], predictions['trajectory'])
+            if 'trajectories' in predictions:
+                image_batch = self._get_raster_images_from_batch_multi(
+                    features['raster'], targets['trajectory'], predictions['trajectories'])
+            else:
+                image_batch = self._get_raster_images_from_batch(
+                    features['raster'], targets['trajectory'], predictions['trajectory'])
         else:
             return
 
@@ -142,6 +152,34 @@ class RasterVisualizationCallback(pl.Callback):
         images = list()
 
         for feature, target, prediction in zip(features.data, targets.data, predictions.data):
+            raster = Raster.from_feature_tensor(feature)
+            target_trajectory = Trajectory(target)
+            predicted_trajectory = Trajectory(prediction)
+
+            image = get_raster_with_trajectories_as_rgb(
+                self.pixel_size,
+                raster,
+                target_trajectory,
+                predicted_trajectory,
+            )
+
+            images.append(image)
+
+        return np.asarray(images)
+
+    def _get_raster_images_from_batch_multi(self, features: Raster, targets: Trajectory, predictions: Trajectories) \
+            -> npt.NDArray[np.float32]:
+        """
+        Creates a list of RGB raster images from a batch of model data.
+
+        :param features: tensor of model features
+        :param targets: tensor of model targets
+        :param predictions: tensor of model predictions
+        :return: list of raster images
+        """
+        images = list()
+
+        for feature, target, prediction in zip(features.data, targets.data, predictions.trajectories[0].data):
             raster = Raster.from_feature_tensor(feature)
             target_trajectory = Trajectory(target)
             predicted_trajectory = Trajectory(prediction)

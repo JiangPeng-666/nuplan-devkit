@@ -1,0 +1,15 @@
+# @package _global_
+experiment_name: training_lmm_model
+py_func: train
+
+defaults:
+  - override /objective:
+      - multi_imitation_objective
+  - override /splitter: nuplan
+  - override /model: lmm_model
+  - override /scenario_builder/nuplan/scenario_filter: training_scenarios
+  - override /training_metric:
+      - multi_avg_displacement_error
+      - multi_avg_heading_error
+      - multi_final_displacement_error
+      - multi_final_heading_error

@@ -1,0 +1,3 @@
+multi_final_displacement_error:
+  _target_: nuplan.planning.training.modeling.metrics.planning_metrics.MultiFinalDisplacementError
+  _convert_: 'all'
