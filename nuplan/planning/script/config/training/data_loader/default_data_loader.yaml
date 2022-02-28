@@ -6,5 +6,5 @@ datamodule:
 params:
   batch_size: 16  # batch size per GPU
   num_workers: 8  # number of dataloader workers
-  pin_memory: false  # allocate dataloader examples in a page-locked memory for faster host-to-device transfer
+  pin_memory: true  # allocate dataloader examples in a page-locked memory for faster host-to-device transfer
   drop_last: true  # drop the last examples if the batch is not complete
