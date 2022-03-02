@@ -16,13 +16,9 @@ from nuplan.planning.training.preprocessing.feature_builders.abstract_feature_bu
 from nuplan.planning.simulation.trajectory.trajectory_sampling import TrajectorySampling
 from nuplan.planning.training.preprocessing.features.raster import Raster
 from nuplan.planning.training.preprocessing.features.raster_utils import get_agents_raster, get_baseline_paths_raster, \
-    get_ego_raster, get_roadmap_raster
-from nuplan.planning.training.preprocessing.utils.agents_preprocessing import build_ego_features, \
-    compute_yaw_rate_from_states, extract_and_pad_agent_poses, extract_and_pad_agent_sizes, \
-    extract_and_pad_agent_velocities, filter_agents
-from nuplan.planning.training.preprocessing.features.trajectory_utils import convert_absolute_to_relative_poses, \
-    convert_absolute_to_relative_velocities
-from nuplan.planning.training.preprocessing.features.agents import AgentsFeature
+    get_ego_raster, get_roadmap_raster, get_ego_with_past_raster
+
+import cv2
 
 class LMMFeatureBuilder(AbstractFeatureBuilder):
     """
@@ -157,19 +153,19 @@ class LMMFeatureBuilder(AbstractFeatureBuilder):
         for i in range(sampled_past_num):
 
             agents_raster_list[i,:,:] = get_agents_raster(
-                sampled_past_ego_states[i],
-                sampled_past_observations[i],
+                anchor_ego_state,
+                Detections(boxes = sampled_past_observations[i]),
                 self.x_range,
                 self.y_range,
                 self.raster_shape,
             )
 
-            ego_raster_list[i,:,:] = get_ego_raster(
+            ego_raster_list[i,:,:] = get_ego_with_past_raster(
+                anchor_ego_state,
+                sampled_past_ego_states[i],
+                self.x_range,
+                self.y_range,
                 self.raster_shape,
-                self.ego_longitudinal_offset,
-                self.ego_width_pixels,
-                self.ego_front_length_pixels,
-                self.ego_rear_length_pixels,
             )
 
         roadmap_raster = get_roadmap_raster(
@@ -190,6 +186,14 @@ class LMMFeatureBuilder(AbstractFeatureBuilder):
             self.target_pixel_size,
             self.baseline_path_thickness
         )
+        ego_raster = self.merge_with_fade(ego_raster_list)
+        agents_raster = self.merge_with_fade(agents_raster_list)
+
+        cv2.imwrite("/home/fla/nuplan-devkit/sample/test11.png", ego_raster)
+        cv2.imwrite("/home/fla/nuplan-devkit/sample/test22.png", agents_raster)
+        cv2.imwrite("/home/fla/nuplan-devkit/sample/test33.png", roadmap_raster)
+        cv2.imwrite("/home/fla/nuplan-devkit/sample/test44.png", baseline_paths_raster)
+
 
         collated_layers = np.dstack([ego_raster, agents_raster, roadmap_raster,  # type: ignore
                                      baseline_paths_raster]).astype(np.float32)
@@ -204,6 +208,7 @@ class LMMFeatureBuilder(AbstractFeatureBuilder):
         return Raster(data=collated_layers)
 
     def merge_with_fade(self, images: List[npt.NDArray[np.float32]]):
+        fade_rate = 5
         images_num = len(images)
         assert images_num>0, "Expected input images to be more than 0."
         
@@ -211,9 +216,9 @@ class LMMFeatureBuilder(AbstractFeatureBuilder):
             return images[0]
         else:
             res_image = np.zeros(images[0].shape)
-        pixel_value = 256-images_num # From 255-(images_num-1) to 255-0
+        pixel_value = 256-fade_rate*images_num # From 255-(images_num-1) to 255-0
         for image in images:
             res_image=np.where(image!=0, image*pixel_value, res_image)
-            pixel_value+=1
+            pixel_value+=fade_rate
         return res_image
 
