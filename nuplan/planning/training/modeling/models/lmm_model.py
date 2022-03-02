@@ -46,6 +46,7 @@ class LMMModel(NNModule):
                  num_input_channels: int,
                  num_features_per_pose: int,
                  future_trajectory_sampling: TrajectorySampling,
+                 past_trajectory_sampling: TrajectorySampling,
                  num_head: int
                  ):
         """

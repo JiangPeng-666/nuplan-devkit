@@ -10,6 +10,13 @@ num_head: 3
 # Dimension on a state in a trajectory
 num_features_per_pose: 3
 
+# Parameters for past trajectory
+past_trajectory_sampling:
+  _target_: nuplan.planning.simulation.trajectory.trajectory_sampling.TrajectorySampling
+  _convert_: 'all'
+  num_poses: 4      # feature past poses
+  time_horizon: 1.5  # [s] time horizon of past poses
+
 # Parameters for predicted trajectory
 future_trajectory_sampling:
   _target_: nuplan.planning.simulation.trajectory.trajectory_sampling.TrajectorySampling
@@ -19,7 +26,7 @@ future_trajectory_sampling:
 
 # All feature builders
 feature_builders:
-  - _target_: nuplan.planning.training.preprocessing.feature_builders.raster_feature_builder.RasterFeatureBuilder
+  - _target_: nuplan.planning.training.preprocessing.feature_builders.lmm_feature_builder.LMMFeatureBuilder
     _convert_: 'all'
 
     map_features: # name of map features to be drawn and its color for encoding.
@@ -40,7 +47,7 @@ feature_builders:
     ego_longitudinal_offset: 0.0  # [%] offset percentage to move the ego vehicle inside the raster
 
     baseline_path_thickness: 1 # [pixel] the thickness of baseline paths in the baseline_paths_raster.
-
+    trajectory_sampling: ${model.past_trajectory_sampling}
 target_builders:
   - _target_: nuplan.planning.training.preprocessing.target_builders.ego_trajectory_target_builder.EgoTrajectoryTargetBuilder
     _convert_: 'all'

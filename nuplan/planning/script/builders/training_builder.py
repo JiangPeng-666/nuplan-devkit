@@ -57,6 +57,10 @@ def build_lightning_datamodule(cfg: DictConfig, scenario_builder: AbstractScenar
     scenarios = scenario_builder.get_scenarios(scenario_filter, worker)
     logger.info("Extracting all scenarios...DONE")
 
+    # s = scenarios[0]
+    # s.get_traffic_light_status_at_iteration(0)
+
+
     assert len(scenarios) > 0, "No scenarios were retrieved for training, check the scenario_filter parameters!"
 
     # Create datamodule

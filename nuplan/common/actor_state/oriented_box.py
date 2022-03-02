@@ -1,7 +1,11 @@
+from sqlalchemy import null
 from nuplan.common.actor_state.state_representation import StateSE2
 from nuplan.common.actor_state.transform_state import translate_position
 from nuplan.common.actor_state.utils import lazy_property
 from shapely.geometry import Polygon
+
+from nuplan.database.utils.boxes.box3d import Box3D
+from nuplan.database.utils.geometry import yaw_to_quaternion
 
 
 class OrientedBox:
@@ -59,6 +63,14 @@ class OrientedBox:
         """
         return self._make_polygon()
 
+    @lazy_property
+    def box3d(self) -> Box3D:
+        '''
+        Returns the Box3D describing the OrientedBox
+        :return: The Box3D of the OrientedBox
+        '''
+        return self._make_box3d()
+
     def _make_polygon(self) -> Polygon:
         """  Creates a polygon which is a rectangle centered on the oriented box center, with given width and length """
         half_width = self.width / 2.0
@@ -68,3 +80,10 @@ class OrientedBox:
                    tuple(translate_position(self.center, -half_length, -half_width)),
                    tuple(translate_position(self.center, half_length, -half_width))]
         return Polygon(corners)
+    
+    def _make_box3d(self) -> Box3D:
+        return Box3D(
+            center = (self.center.x, self.center.y, 0.0), 
+            size = (self.width, self.length, self.height), 
+            orientation = yaw_to_quaternion(self.center.heading)
+        )

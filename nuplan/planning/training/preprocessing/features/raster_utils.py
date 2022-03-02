@@ -337,3 +337,80 @@ def get_baseline_paths_raster(
     baseline_paths_raster = np.flip(baseline_paths_raster, axis=0)  # type: ignore
     baseline_paths_raster = np.ascontiguousarray(baseline_paths_raster, dtype=np.float32)
     return baseline_paths_raster
+
+
+def get_ego_with_past_raster(
+    sampled_past_ego_states: List[EgoState],
+    x_range: Tuple[float, float],
+    y_range: Tuple[float, float],
+    raster_shape: Tuple[int, int],
+    polygon_bit_shift: int = 9,
+) -> npt.NDArray[np.float32]:
+    """
+    Constructs the agents layer of the raster by transforming all detected boxes around the agent
+    and creating polygons of them in a raster grid.
+
+    :param ego_state: SE2 state of ego.
+    :param detections: list of 3D bounding box of detected agents.
+    :param x_range: [m] min and max range from the edges of the grid in x direction.
+    :param y_range: [m] min and max range from the edges of the grid in y direction.
+    :param raster_shape: shape of the target raster.
+    :param polygon_bit_shift: bit shift of the polygon used in opencv.
+    :return: constructed agents raster layer.
+    """
+    archor_ego_state = sampled_past_ego_states[-1]
+    ego_boxes = []
+
+    for i in range(len(sampled_past_ego_states)):
+        ego_boxes.append(sampled_past_ego_states[i].agent().box())
+
+    xmin, xmax = x_range
+    ymin, ymax = y_range
+    width, height = raster_shape
+
+    agents_raster = np.zeros(raster_shape, dtype=np.float32)
+
+    ego_to_global = archor_ego_state.rear_axle.as_matrix_3d()
+    global_to_ego = np.linalg.inv(ego_to_global)  # type: ignore
+
+    # Extract the rotation matrix from the transformation matrix which is in the projective coordinate.
+    map_align_rot = R.from_matrix(ego_to_global[:3, :3].T)
+    map_align_rot_angle = map_align_rot.as_euler('zxy')[0] + (np.pi / 2)
+    map_align_transform = Quaternion(axis=[0, 0, 1], angle=map_align_rot_angle).transformation_matrix
+    transforms = ego_to_global @ map_align_transform @ global_to_ego
+
+    # Ego translation respect to global frame
+    ego_translation = -np.array([archor_ego_state.rear_axle.x, archor_ego_state.rear_axle.y, 0])
+
+    for ego_box in ego_boxes:
+        # Transform the agent bounding boxes to ego coordinate and rotate them to make the ego face up.
+        ego_box.transform(transforms)
+        ego_box.translate(ego_translation)
+
+        # Filter out boxes outside the raster.
+        valid_x = x_range[0] < ego_box.center[0] < x_range[1]
+        valid_y = y_range[0] < ego_box.center[1] < y_range[1]
+        if not (valid_x and valid_y):
+            continue
+
+        # Get the 2D coordinate of the detected agents.
+        box_bottom_corners = ego_box.bottom_corners[:2, :]
+        x_corners, y_corners = box_bottom_corners
+
+        # Discretize
+        y_corners = (y_corners - ymin) / (ymax - ymin) * height
+        x_corners = (x_corners - xmin) / (xmax - xmin) * width
+
+        box_2d_coords = np.stack([x_corners, y_corners], axis=1)
+        box_2d_coords = np.expand_dims(box_2d_coords, axis=0)  # type: ignore
+
+        # Draw the box as a filled polygon on the raster layer.
+        box_2d_coords = (box_2d_coords * 2 ** polygon_bit_shift).astype(np.int32)
+        cv2.fillPoly(agents_raster, box_2d_coords, color=1.0, shift=polygon_bit_shift, lineType=cv2.LINE_AA)
+
+    # Flip the agents_raster along the horizontal axis.
+    agents_raster = np.asarray(agents_raster)
+    agents_raster = np.flip(agents_raster, axis=0)  # type: ignore
+    agents_raster = np.ascontiguousarray(agents_raster, dtype=np.float32)
+
+    return agents_raster
