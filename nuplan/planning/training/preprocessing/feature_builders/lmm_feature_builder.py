@@ -189,10 +189,10 @@ class LMMFeatureBuilder(AbstractFeatureBuilder):
         ego_raster = self.merge_with_fade(ego_raster_list)
         agents_raster = self.merge_with_fade(agents_raster_list)
 
-        cv2.imwrite("/home/fla/nuplan-devkit/sample/test11.png", ego_raster)
-        cv2.imwrite("/home/fla/nuplan-devkit/sample/test22.png", agents_raster)
-        cv2.imwrite("/home/fla/nuplan-devkit/sample/test33.png", roadmap_raster)
-        cv2.imwrite("/home/fla/nuplan-devkit/sample/test44.png", baseline_paths_raster)
+        # cv2.imwrite("/home/fla/nuplan-devkit/sample/test11.png", ego_raster)
+        # cv2.imwrite("/home/fla/nuplan-devkit/sample/test22.png", agents_raster)
+        # cv2.imwrite("/home/fla/nuplan-devkit/sample/test33.png", roadmap_raster)
+        # cv2.imwrite("/home/fla/nuplan-devkit/sample/test44.png", baseline_paths_raster)
 
 
         collated_layers = np.dstack([ego_raster, agents_raster, roadmap_raster,  # type: ignore

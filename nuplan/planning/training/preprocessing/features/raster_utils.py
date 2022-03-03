@@ -411,3 +411,45 @@ def get_ego_with_past_raster(
     ego_raster = np.ascontiguousarray(ego_raster, dtype=np.float32)
 
     return ego_raster
+
+
+def get_baseline_paths_with_trafficlight_raster(
+    ego_state: EgoState,
+    map_api: AbstractMap,
+    x_range: Tuple[float, float],
+    y_range: Tuple[float, float],
+    raster_shape: Tuple[int, int],
+    resolution: float,
+    baseline_path_thickness: int = 1,
+) -> npt.NDArray[np.float32]:
+    """
+    Constructs the baseline paths layer by converting vector map to raster map.
+
+    :param ego_state: SE2 state of ego.
+    :param map_api: map api
+    :param x_range: [m] min and max range from the edges of the grid in x direction.
+    :param y_range: [m] min and max range from the edges of the grid in y direction.
+    :param raster_shape: shape of the target raster.
+    :param resolution: [m] pixel size in meters.
+    :param baseline_path_thickness: [pixel] the thickness of polylines used in opencv.
+    :return baseline_paths_raster: the constructed baseline paths layer.
+    """
+
+    # Assume the raster has a square shape.
+    if (x_range[1] - x_range[0]) != (y_range[1] - y_range[0]):
+        raise ValueError(f'Raster shape is assumed to be square but got width: \
+            {y_range[1] - y_range[0]} and height: {x_range[1] - x_range[0]}')
+
+    radius = (x_range[1] - x_range[0]) / 2
+    baseline_paths_raster = np.zeros(raster_shape, dtype=np.float32)
+
+    for map_features in ['LANE', 'LANE_CONNECTOR']:
+        baseline_paths_coords = _get_layer_coords(
+            ego_state, map_api, SemanticMapLayer[map_features], 'linestring', radius)
+        baseline_paths_raster = _draw_linestring_image(
+            baseline_paths_raster, baseline_paths_coords, radius, resolution, baseline_path_thickness)
+
+    # Flip the agents_raster along the horizontal axis.
+    baseline_paths_raster = np.flip(baseline_paths_raster, axis=0)  # type: ignore
+    baseline_paths_raster = np.ascontiguousarray(baseline_paths_raster, dtype=np.float32)
+    return baseline_paths_raster*255

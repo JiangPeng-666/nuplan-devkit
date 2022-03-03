@@ -13,7 +13,6 @@ from nuplan.planning.training.preprocessing.features.trajectory import Trajector
 from nuplan.planning.training.preprocessing.features.trajectories import Trajectories
 from nuplan.planning.training.preprocessing.target_builders.abstract_target_builder import AbstractTargetBuilder
 
-
 def convert_predictions_to_trajectory(predictions: torch.Tensor) -> torch.Tensor:
     """
     Convert predictions tensor to Trajectory.data shape
@@ -63,7 +62,7 @@ class LMMModel(NNModule):
                          future_trajectory_sampling=future_trajectory_sampling)
         
         self.num_head = num_head
-        num_output_features = future_trajectory_sampling.num_poses * num_features_per_pose* num_head
+        self.num_output_features = future_trajectory_sampling.num_poses * num_features_per_pose* num_head
         self._model = timm.create_model(model_name, pretrained=pretrained)
         self._model.conv_stem = Conv2dSame(
             num_input_channels,
@@ -86,7 +85,7 @@ class LMMModel(NNModule):
             nn.ReLU(),
             nn.Linear(
                 in_features=self.backbone_out_features,
-                out_features=num_output_features,
+                out_features=self.num_output_features + num_head,
             ),
         )
         for param in self.parameters():
@@ -106,7 +105,11 @@ class LMMModel(NNModule):
         """
         raster: Raster = features["raster"]
 
-        predictions = self.lin_head(self._model.forward(raster.data))
+        output = self.lin_head(self._model.forward(raster.data))
 
-        data: Trajectories = convert_predictions_to_trajectories(predictions, self.num_head)
-        return {"trajectories": data}
+        pred, confidence = torch.split(output, self.num_output_features, dim=1)
+
+        confidence = torch.softmax(confidence, dim=1)
+
+        data: Trajectories = convert_predictions_to_trajectories(pred, self.num_head)
+        return {"trajectories": data, "confidence":confidence}
