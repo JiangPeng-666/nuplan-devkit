@@ -7,6 +7,7 @@ import numpy.typing as npt
 
 from nuplan.common.actor_state.ego_state import EgoState
 from nuplan.common.actor_state.state_representation import TimePoint,StateSE2
+from nuplan.common.maps.maps_datatypes import TrafficLightStatusData, TrafficLightStatusType
 from nuplan.database.utils.boxes.box3d import Box3D
 from nuplan.common.maps.abstract_map import AbstractMap
 from nuplan.planning.scenario_builder.abstract_scenario import AbstractScenario
@@ -15,8 +16,9 @@ from nuplan.planning.training.preprocessing.feature_builders.abstract_feature_bu
     AbstractModelFeature, FeatureBuilderMetaData
 from nuplan.planning.simulation.trajectory.trajectory_sampling import TrajectorySampling
 from nuplan.planning.training.preprocessing.features.raster import Raster
-from nuplan.planning.training.preprocessing.features.raster_utils import get_agents_raster, get_baseline_paths_raster, \
+from nuplan.planning.training.preprocessing.features.raster_utils import get_agents_raster, get_baseline_paths_raster, get_baseline_paths_raster_with_filter, \
     get_ego_raster, get_roadmap_raster, get_ego_with_past_raster
+
 
 import cv2
 
@@ -28,7 +30,6 @@ class LMMFeatureBuilder(AbstractFeatureBuilder):
     def __init__(
             self,
             map_features: Dict[str, int],
-            num_input_channels: int,
             target_width: int,
             target_height: int,
             target_pixel_size: float,
@@ -38,12 +39,12 @@ class LMMFeatureBuilder(AbstractFeatureBuilder):
             ego_longitudinal_offset: float,
             baseline_path_thickness: int,
             trajectory_sampling: TrajectorySampling,
+            use_trafficlight: bool = False
     ) -> None:
         """
         Initializes the class.
 
         :param map_features: name of map features to be drawn and their color for encoding.
-        :param num_input_channels: number of input channel of the raster model.
         :param target_width: [pixels] target width of the raster
         :param target_height: [pixels] target height of the raster
         :param target_pixel_size: [m] target pixel size in meters
@@ -56,7 +57,6 @@ class LMMFeatureBuilder(AbstractFeatureBuilder):
         :param baseline_path_thickness: [pixels] the thickness of baseline paths in the baseline_paths_raster.
         """
         self.map_features = map_features
-        self.num_input_channels = num_input_channels
         self.target_width = target_width
         self.target_height = target_height
         self.target_pixel_size = target_pixel_size
@@ -77,6 +77,8 @@ class LMMFeatureBuilder(AbstractFeatureBuilder):
 
         self.num_past_poses = trajectory_sampling.num_poses
         self.past_time_horizon = trajectory_sampling.time_horizon
+
+        self.use_trafficlight = use_trafficlight
 
     @classmethod
     def get_feature_unique_name(cls) -> str:
@@ -111,6 +113,12 @@ class LMMFeatureBuilder(AbstractFeatureBuilder):
         # Extract and pad features
         sampled_past_observations = past_agent_boxes + [present_agent_boxes]
 
+        # Get trafficlight info
+        trafficlight: List[TrafficLightStatusData] = scenario.get_traffic_light_status_at_iteration(iteration=0)
+        trafficlight_dict = {tl_statustype:[] for tl_statustype in TrafficLightStatusType}
+        for tl in trafficlight:
+            trafficlight_dict[tl.status].append(tl.lane_connector_id)
+            
         assert len(sampled_past_ego_states) == len(sampled_past_observations), \
             "Expected the trajectory length of ego and agent to be equal. " \
             f"Got ego: {len(sampled_past_ego_states)} and agent: {len(sampled_past_observations)}"
@@ -118,7 +126,7 @@ class LMMFeatureBuilder(AbstractFeatureBuilder):
         assert len(sampled_past_observations) > 2, "Trajectory of length of " \
                                                    f"{len(sampled_past_observations)} needs to be at least 3"
 
-        return self._compute_feature(sampled_past_ego_states, sampled_past_observations, time_stamps, map_api)
+        return self._compute_feature(sampled_past_ego_states, sampled_past_observations, time_stamps, map_api, trafficlight_dict)
 
     def get_features_from_simulation(self, ego_states: List[EgoState], observations: List[Observation],
                                      meta_data: FeatureBuilderMetaData) -> Raster:
@@ -134,7 +142,8 @@ class LMMFeatureBuilder(AbstractFeatureBuilder):
     def _compute_feature(self, sampled_past_ego_states: List[EgoState],
                          sampled_past_observations: List[List[Box3D]],
                          time_stamps: List[TimePoint],
-                         map_api: AbstractMap) -> Raster:
+                         map_api: AbstractMap,
+                         trafficlight_dict: Dict[TrafficLightStatusType, List] = None,) -> Raster:
 
         # The last frame is the current frame, set as archor.
         anchor_ego_state = sampled_past_ego_states[-1]
@@ -143,9 +152,9 @@ class LMMFeatureBuilder(AbstractFeatureBuilder):
         assert len(sampled_past_observations) == len(sampled_past_ego_states), \
             "Expected sampled_past_observations and sampled_past_ego_states to have the same length, \
             But got {} and {}".format(len(sampled_past_observations), len(sampled_past_ego_states))
-
+        
+        # Raster Agents and Ego
         sampled_past_num = len(sampled_past_observations)
-
         agents_raster_list = np.zeros((sampled_past_num, self.raster_shape[0],self.raster_shape[1]), dtype=np.float32)
         ego_raster_list = np.zeros((sampled_past_num, self.raster_shape[0],self.raster_shape[1]), dtype=np.float32)
 
@@ -167,7 +176,10 @@ class LMMFeatureBuilder(AbstractFeatureBuilder):
                 self.y_range,
                 self.raster_shape,
             )
+        ego_raster = self.merge_with_fade(ego_raster_list)
+        agents_raster = self.merge_with_fade(agents_raster_list)
 
+        # Raster Roadmap
         roadmap_raster = get_roadmap_raster(
             anchor_ego_state,
             map_api,
@@ -177,33 +189,60 @@ class LMMFeatureBuilder(AbstractFeatureBuilder):
             self.raster_shape,
             self.target_pixel_size,
         )
-        baseline_paths_raster = get_baseline_paths_raster(
-            anchor_ego_state,
-            map_api,
-            self.x_range,
-            self.y_range,
-            self.raster_shape,
-            self.target_pixel_size,
-            self.baseline_path_thickness
-        )
-        ego_raster = self.merge_with_fade(ego_raster_list)
-        agents_raster = self.merge_with_fade(agents_raster_list)
+
+        # Raster Baseline Path
+        if self.use_trafficlight == True:
+            baseline_paths_rasters = [np.zeros((self.raster_shape[0],self.raster_shape[1]), dtype=np.float32) for i in range(len(TrafficLightStatusType))]
+            for i, trafficlight_status in enumerate(TrafficLightStatusType):
+                filter = trafficlight_dict[trafficlight_status]
+                if len(filter)>0 and trafficlight_status == TrafficLightStatusType['RED']:
+                    print(1)
+                else:
+                    continue
+                if len(filter) == 0:
+                    continue
+                baseline_paths_rasters[i] = get_baseline_paths_raster_with_filter(
+                    anchor_ego_state,
+                    map_api,
+                    self.x_range,
+                    self.y_range,
+                    self.raster_shape,
+                    self.target_pixel_size,
+                    filter,
+                    self.baseline_path_thickness,
+                )
+            baseline_paths_raster = get_baseline_paths_raster(
+                anchor_ego_state,
+                map_api,
+                self.x_range,
+                self.y_range,
+                self.raster_shape,
+                self.target_pixel_size,
+                self.baseline_path_thickness,
+            )
+            collated_layers = np.dstack([ego_raster, agents_raster, roadmap_raster, baseline_paths_raster
+                            ]+baseline_paths_rasters).astype(np.float32)
+        else:
+            baseline_paths_raster = get_baseline_paths_raster(
+                anchor_ego_state,
+                map_api,
+                self.x_range,
+                self.y_range,
+                self.raster_shape,
+                self.target_pixel_size,
+                self.baseline_path_thickness,
+            )
+            collated_layers = np.dstack([ego_raster, agents_raster, roadmap_raster,
+                            baseline_paths_raster]).astype(np.float32)
+
 
         # cv2.imwrite("/home/fla/nuplan-devkit/sample/test11.png", ego_raster)
         # cv2.imwrite("/home/fla/nuplan-devkit/sample/test22.png", agents_raster)
         # cv2.imwrite("/home/fla/nuplan-devkit/sample/test33.png", roadmap_raster)
         # cv2.imwrite("/home/fla/nuplan-devkit/sample/test44.png", baseline_paths_raster)
-
-
-        collated_layers = np.dstack([ego_raster, agents_raster, roadmap_raster,  # type: ignore
-                                     baseline_paths_raster]).astype(np.float32)
-
-        # Ensures the last channel is the number of channel.
-        if collated_layers.shape[-1] != self.num_input_channels:
-            raise RuntimeError(
-                f'Invalid raster numpy array. '
-                f'Expected {self.num_input_channels} channels, got {collated_layers.shape[-1]} '
-                f'Shape is {collated_layers.shape}')
+        cv2.imwrite("/home/fla/nuplan-devkit/sample/test55.png", baseline_paths_rasters[0])
+        cv2.imwrite("/home/fla/nuplan-devkit/sample/test66.png", baseline_paths_rasters[1])
+        cv2.imwrite("/home/fla/nuplan-devkit/sample/test77.png", baseline_paths_rasters[2])
 
         return Raster(data=collated_layers)
 
@@ -221,4 +260,3 @@ class LMMFeatureBuilder(AbstractFeatureBuilder):
             res_image=np.where(image!=0, image*pixel_value, res_image)
             pixel_value+=fade_rate
         return res_image
-

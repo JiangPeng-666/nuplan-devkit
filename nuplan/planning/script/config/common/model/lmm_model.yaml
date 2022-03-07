@@ -2,7 +2,9 @@ _target_: nuplan.planning.training.modeling.models.lmm_model.LMMModel
 _convert_: 'all'
 model_name: tf_efficientnet_b3_ns  # model name to load from TIMM (e.g. tf_mobilenetv3_small_minimal_100, efficientnet_b3)
 pretrained: true  # whether to use pretrained weights
-num_input_channels : 4 # number of input channel of the raster model.
+
+# Use Traffic Light Info or not:
+use_trafficlight: True
 
 # Multihead of the predicted trajectory
 num_head: 3
@@ -35,8 +37,6 @@ feature_builders:
       STOP_LINE : 128
       CROSSWALK : 128
 
-    num_input_channels : ${model.num_input_channels} # number of input channel of the raster model.
-
     target_width: 224  # width of raster passed to the model
     target_height: 224  # height of raster passed to the model
     target_pixel_size: 0.5  # [m] pixel size of raster
@@ -48,6 +48,9 @@ feature_builders:
 
     baseline_path_thickness: 1 # [pixel] the thickness of baseline paths in the baseline_paths_raster.
     trajectory_sampling: ${model.past_trajectory_sampling}
+
+    use_trafficlight: ${model.use_trafficlight}
+
 target_builders:
   - _target_: nuplan.planning.training.preprocessing.target_builders.ego_trajectory_target_builder.EgoTrajectoryTargetBuilder
     _convert_: 'all'

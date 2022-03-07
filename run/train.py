@@ -23,13 +23,13 @@ cfg = hydra.compose(config_name=CONFIG_NAME, overrides=[
     'py_func=train',
     '+training=training_lmm_model',  # raster model that consumes ego, agents and map raster layers and regresses the ego's trajectory
     'scenario_builder=nuplan_mini',  # use nuplan mini database
-    'scenario_builder.nuplan.scenario_filter.limit_scenarios_per_type=500',  # Choose 500 scenarios to train with
+    'scenario_builder.nuplan.scenario_filter.limit_scenarios_per_type=1000',  # Choose 500 scenarios to train with
     'scenario_builder.nuplan.scenario_filter.subsample_ratio=0.01',  # subsample scenarios from 20Hz to 0.2Hz
     'lightning.trainer.params.accelerator=ddp_spawn',  # ddp is not allowed in interactive environment, using ddp_spawn instead - this can bottleneck the data pipeline, it is recommended to run training outside the notebook
     'lightning.trainer.params.max_epochs=10',
     'data_loader.params.batch_size=8',
     'data_loader.params.num_workers=8',
-    'worker=sequential'
+    'worker=sequential',
 ])
 
 from nuplan.planning.script.run_training import main as main_train

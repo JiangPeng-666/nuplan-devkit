@@ -4,6 +4,7 @@ from timm.models.layers.conv2d_same import Conv2dSame
 import timm
 from torch import nn
 import torch
+from nuplan.common.maps.maps_datatypes import TrafficLightStatusType
 from nuplan.planning.simulation.trajectory.trajectory_sampling import TrajectorySampling
 from nuplan.planning.training.modeling.nn_model import NNModule
 from nuplan.planning.training.modeling.types import FeaturesType, TargetsType
@@ -34,7 +35,6 @@ def convert_predictions_to_trajectories(predictions: torch.Tensor, num_head: int
 
     return trajectories
 
-
 class LMMModel(NNModule):
 
     def __init__(self,
@@ -42,11 +42,11 @@ class LMMModel(NNModule):
                  target_builders: List[AbstractTargetBuilder],
                  model_name: str,
                  pretrained: bool,
-                 num_input_channels: int,
                  num_features_per_pose: int,
                  future_trajectory_sampling: TrajectorySampling,
                  past_trajectory_sampling: TrajectorySampling,
-                 num_head: int
+                 num_head: int,
+                 use_trafficlight: bool,
                  ):
         """
         Wrapper around raster-based CNN model
@@ -60,12 +60,13 @@ class LMMModel(NNModule):
         """
         super().__init__(feature_builders=feature_builders, target_builders=target_builders,
                          future_trajectory_sampling=future_trajectory_sampling)
-        
+
         self.num_head = num_head
         self.num_output_features = future_trajectory_sampling.num_poses * num_features_per_pose* num_head
         self._model = timm.create_model(model_name, pretrained=pretrained)
+        self.num_input_channels = (4 + len(TrafficLightStatusType)) if use_trafficlight else 4
         self._model.conv_stem = Conv2dSame(
-            num_input_channels,
+            self.num_input_channels,
             self._model.conv_stem.out_channels,
             kernel_size=self._model.conv_stem.kernel_size,
             stride=self._model.conv_stem.stride,

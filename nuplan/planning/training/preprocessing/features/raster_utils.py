@@ -14,6 +14,8 @@ from nuplan.common.actor_state.state_representation import Point2D
 from nuplan.common.maps.abstract_map import AbstractMap, SemanticMapLayer
 from nuplan.common.maps.abstract_map_objects import BaselinePath, PolygonMapObject
 from nuplan.planning.simulation.observation.observation_type import Detections
+from nuplan.common.maps.maps_datatypes import TrafficLightStatusData, TrafficLightStatusType
+
 
 
 def _linestring_to_coords(geometry: List[BaselinePath]) -> List[Tuple[array]]:  # type: ignore
@@ -35,6 +37,21 @@ def _polygon_to_coords(geometry: List[PolygonMapObject]) -> List[Tuple[array]]: 
     """
     return [element.polygon.exterior.coords.xy for element in geometry]
 
+def _polygon_to_coords_with_filter(
+    geometry: List[PolygonMapObject], 
+    filter: List[str] = None,
+    ) -> List[Tuple[array]]:  # type: ignore
+    """
+    Get 2d coordinates of the vertices of a polygon.
+    The polygon is a shapely.geometry.polygon.
+    :param geometry: the polygon.
+    :return: 2d coordinates of the vertices of the polygon.
+    """
+    res = []
+    for element in geometry:
+        if element.id in filter:
+            res.append(element.polygon.exterior.coords.xy)
+    return res
 
 def _cartesian_to_projective_coords(coords: npt.NDArray[np.float32]) -> npt.NDArray[np.float32]:
     """
@@ -43,7 +60,6 @@ def _cartesian_to_projective_coords(coords: npt.NDArray[np.float32]) -> npt.NDAr
     :return: the resulting projective coordinates of shape (N, 3).
     """
     return np.pad(coords, ((0, 0), (0, 1)), 'constant', constant_values=1.0)  # type: ignore
-
 
 def _get_layer_coords(
     ego_pose: EgoState,
@@ -92,6 +108,56 @@ def _get_layer_coords(
         object_coords = []
 
     return object_coords  # type: ignore
+
+def _get_layer_coords_with_filter(
+    ego_pose: EgoState,
+    map_api: AbstractMap,
+    map_layer_name: SemanticMapLayer,
+    map_layer_geometry: str,
+    radius: float,
+    filter: List[str] = None,
+) -> List[npt.NDArray[np.float32]]:
+    """
+    Constructs the map layer of the raster by converting vector map to raster map.
+
+    :param ego_state: SE2 state of ego.
+    :param map_api: map api
+    :param map_layer_name: name of the vector map layer to create a raster from.
+    :param map_layer_geometry: geometric primitive of the vector map layer. i.e. either polygon or linestring.
+    :param radius: [m] the radius of the square raster map.
+    :return: the list of 2d coordinates which represent the shape of the map.
+    """
+
+    ego_position = Point2D(ego_pose.rear_axle.x, ego_pose.rear_axle.y)
+    nearest_vector_map = map_api.get_proximal_map_objects(
+        layers=[map_layer_name],
+        point=ego_position,
+        radius=radius,
+    )
+    geometry = nearest_vector_map[map_layer_name]
+
+    if len(geometry):
+        global_transform = np.linalg.inv(ego_pose.rear_axle.as_matrix())  # type: ignore
+
+        # By default the map is right-oriented, this makes it top-oriented.
+        map_align_transform = R.from_euler('z', 90, degrees=True).as_matrix().astype(np.float32)
+        transform = map_align_transform @ global_transform
+
+        if map_layer_geometry == 'polygon':
+            object_coords = _polygon_to_coords_with_filter(geometry, filter)
+        elif map_layer_geometry == 'linestring':
+            object_coords = _linestring_to_coords(geometry)
+        else:
+            raise RuntimeError(f'Layer geometry {map_layer_geometry} type not supported')
+
+        object_coords = [np.vstack(coords).T for coords in object_coords]  # type: ignore
+        object_coords = [(transform @ _cartesian_to_projective_coords(coords).T).T[:, :2]  # type: ignore
+                         for coords in object_coords]
+    else:
+        object_coords = []
+
+    return object_coords  # type: ignore
+
 
 
 def _draw_polygon_image(
@@ -413,13 +479,14 @@ def get_ego_with_past_raster(
     return ego_raster
 
 
-def get_baseline_paths_with_trafficlight_raster(
+def get_baseline_paths_raster_with_filter(
     ego_state: EgoState,
     map_api: AbstractMap,
     x_range: Tuple[float, float],
     y_range: Tuple[float, float],
     raster_shape: Tuple[int, int],
     resolution: float,
+    filter: List[str],
     baseline_path_thickness: int = 1,
 ) -> npt.NDArray[np.float32]:
     """
@@ -443,9 +510,11 @@ def get_baseline_paths_with_trafficlight_raster(
     radius = (x_range[1] - x_range[0]) / 2
     baseline_paths_raster = np.zeros(raster_shape, dtype=np.float32)
 
+
+
     for map_features in ['LANE', 'LANE_CONNECTOR']:
-        baseline_paths_coords = _get_layer_coords(
-            ego_state, map_api, SemanticMapLayer[map_features], 'linestring', radius)
+        baseline_paths_coords = _get_layer_coords_with_filter(
+            ego_state, map_api, SemanticMapLayer[map_features], 'linestring', radius, filter)
         baseline_paths_raster = _draw_linestring_image(
             baseline_paths_raster, baseline_paths_coords, radius, resolution, baseline_path_thickness)
 
