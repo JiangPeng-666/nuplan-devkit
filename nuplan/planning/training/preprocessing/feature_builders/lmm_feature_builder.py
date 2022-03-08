@@ -22,6 +22,8 @@ from nuplan.planning.training.preprocessing.features.raster_utils import get_age
 
 import cv2
 
+from nuplan.planning.training.visualization.raster_visualization import Color
+
 class LMMFeatureBuilder(AbstractFeatureBuilder):
     """
     LMM builder responsible for constructing model input features.
@@ -39,7 +41,8 @@ class LMMFeatureBuilder(AbstractFeatureBuilder):
             ego_longitudinal_offset: float,
             baseline_path_thickness: int,
             trajectory_sampling: TrajectorySampling,
-            use_trafficlight: bool = False
+            use_trafficlight: bool = False,
+            use_rgb: bool = True,
     ) -> None:
         """
         Initializes the class.
@@ -79,6 +82,7 @@ class LMMFeatureBuilder(AbstractFeatureBuilder):
         self.past_time_horizon = trajectory_sampling.time_horizon
 
         self.use_trafficlight = use_trafficlight
+        self.use_rgb = use_rgb
 
     @classmethod
     def get_feature_unique_name(cls) -> str:
@@ -118,7 +122,10 @@ class LMMFeatureBuilder(AbstractFeatureBuilder):
         trafficlight_dict = {tl_statustype:[] for tl_statustype in TrafficLightStatusType}
         for tl in trafficlight:
             trafficlight_dict[tl.status].append(tl.lane_connector_id)
-            
+        
+        if len(trafficlight_dict[TrafficLightStatusType['RED']])>0:
+            print(2)
+
         assert len(sampled_past_ego_states) == len(sampled_past_observations), \
             "Expected the trajectory length of ego and agent to be equal. " \
             f"Got ego: {len(sampled_past_ego_states)} and agent: {len(sampled_past_observations)}"
@@ -234,20 +241,30 @@ class LMMFeatureBuilder(AbstractFeatureBuilder):
             )
             collated_layers = np.dstack([ego_raster, agents_raster, roadmap_raster,
                             baseline_paths_raster]).astype(np.float32)
-
-
+        
+        if self.use_rgb:
+            res_image = self.to_rgb(
+                roadmap_raster=roadmap_raster,
+                agents_raster = agents_raster,
+                ego_raster = ego_raster,
+                baseline_paths_raster = baseline_paths_raster
+                )
+        else:
+            res_image = collated_layers
+        
+        #cv2.imwrite("/home/fla/nuplan-devkit/sample/test00.png", res_image)
         # cv2.imwrite("/home/fla/nuplan-devkit/sample/test11.png", ego_raster)
         # cv2.imwrite("/home/fla/nuplan-devkit/sample/test22.png", agents_raster)
         # cv2.imwrite("/home/fla/nuplan-devkit/sample/test33.png", roadmap_raster)
         # cv2.imwrite("/home/fla/nuplan-devkit/sample/test44.png", baseline_paths_raster)
-        cv2.imwrite("/home/fla/nuplan-devkit/sample/test55.png", baseline_paths_rasters[0])
-        cv2.imwrite("/home/fla/nuplan-devkit/sample/test66.png", baseline_paths_rasters[1])
-        cv2.imwrite("/home/fla/nuplan-devkit/sample/test77.png", baseline_paths_rasters[2])
+        # cv2.imwrite("/home/fla/nuplan-devkit/sample/test55.png", baseline_paths_rasters[0])
+        # cv2.imwrite("/home/fla/nuplan-devkit/sample/test66.png", baseline_paths_rasters[1])
+        # cv2.imwrite("/home/fla/nuplan-devkit/sample/test77.png", baseline_paths_rasters[2])
 
-        return Raster(data=collated_layers)
+        return Raster(data=res_image)
 
     def merge_with_fade(self, images: List[npt.NDArray[np.float32]]):
-        fade_rate = 5
+        fade_rate = 10
         images_num = len(images)
         assert images_num>0, "Expected input images to be more than 0."
         
@@ -259,4 +276,43 @@ class LMMFeatureBuilder(AbstractFeatureBuilder):
         for image in images:
             res_image=np.where(image!=0, image*pixel_value, res_image)
             pixel_value+=fade_rate
+        return res_image
+
+    def to_rgb(self,
+        roadmap_raster: npt.NDArray[np.float32],
+        agents_raster: npt.NDArray[np.float32],
+        ego_raster: npt.NDArray[np.float32],
+        baseline_paths_raster: npt.NDArray[np.float32],
+        baseline_paths_rasters: npt.NDArray[np.float32] = None,
+    ):
+
+        if ego_raster.max()<1:
+            ego_raster*=255
+        if roadmap_raster.max()<1:
+            roadmap_raster*=255
+        if agents_raster.max()<1:
+            agents_raster*=255
+        if baseline_paths_raster.max()<1:
+            baseline_paths_raster*=255
+        
+        res_image = np.ones((self.raster_shape[0], self.raster_shape[1], 3), dtype=np.float32)
+        res_image[:,:] = np.array(Color.BACKGROUND.value)
+
+        for i in range(self.raster_shape[0]):
+            for j in range(self.raster_shape[1]):
+
+                roadmap_pixel = roadmap_raster[i,j]
+                agents_pixel = agents_raster[i,j]
+                ego_pixel = ego_raster[i,j]
+                baseline_paths_pixel = baseline_paths_raster[i,j]
+                
+                if ego_pixel>0:
+                    res_image[i,j,:] = np.array(Color.EGO.value)*ego_pixel
+                elif agents_pixel>0:
+                    res_image[i,j,:] = np.array(Color.AGENTS.value)*agents_pixel
+                elif baseline_paths_pixel>0:
+                    res_image[i,j,:] = np.array(Color.BASELINE_PATHS.value)*baseline_paths_pixel
+                elif roadmap_pixel>0:
+                    res_image[i,j,:] = np.array(Color.ROADMAP.value)*roadmap_pixel
+
         return res_image

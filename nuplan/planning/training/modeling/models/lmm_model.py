@@ -47,6 +47,7 @@ class LMMModel(NNModule):
                  past_trajectory_sampling: TrajectorySampling,
                  num_head: int,
                  use_trafficlight: bool,
+                 use_rgb: bool,
                  ):
         """
         Wrapper around raster-based CNN model
@@ -64,7 +65,12 @@ class LMMModel(NNModule):
         self.num_head = num_head
         self.num_output_features = future_trajectory_sampling.num_poses * num_features_per_pose* num_head
         self._model = timm.create_model(model_name, pretrained=pretrained)
-        self.num_input_channels = (4 + len(TrafficLightStatusType)) if use_trafficlight else 4
+        if use_rgb:
+            self.num_input_channels = 3
+        elif use_trafficlight:
+            self.num_input_channels = (4 + len(TrafficLightStatusType))
+        else:
+            self.num_input_channels = 4
         self._model.conv_stem = Conv2dSame(
             self.num_input_channels,
             self._model.conv_stem.out_channels,
@@ -113,4 +119,4 @@ class LMMModel(NNModule):
         confidence = torch.softmax(confidence, dim=1)
 
         data: Trajectories = convert_predictions_to_trajectories(pred, self.num_head)
-        return {"trajectories": data, "confidence":confidence}
+        return {"trajectories": data, "confidence": confidence}

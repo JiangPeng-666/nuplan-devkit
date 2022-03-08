@@ -228,6 +228,7 @@ def get_roadmap_raster(
     y_range: Tuple[float, float],
     raster_shape: Tuple[int, int],
     resolution: float,
+    roadmap_raster: npt.NDArray[np.float32] = None
 ) -> npt.NDArray[np.float32]:
     """
     Constructs the map layer of the raster by converting vector map to raster map.
@@ -247,7 +248,9 @@ def get_roadmap_raster(
             {y_range[1] - y_range[0]} and height: {x_range[1] - x_range[0]}'
 
     radius = (x_range[1] - x_range[0]) / 2
-    roadmap_raster = np.zeros(raster_shape, dtype=np.float32)
+
+    if roadmap_raster == None:
+        roadmap_raster = np.zeros(raster_shape, dtype=np.float32)
 
     for feature_name, feature_color in map_features.items():
         coords = _get_layer_coords(ego_state, map_api, SemanticMapLayer[feature_name], 'polygon', radius)
@@ -266,6 +269,7 @@ def get_agents_raster(
     y_range: Tuple[float, float],
     raster_shape: Tuple[int, int],
     polygon_bit_shift: int = 9,
+    agents_raster: npt.NDArray[np.float32] = None
 ) -> npt.NDArray[np.float32]:
     """
     Constructs the agents layer of the raster by transforming all detected boxes around the agent
@@ -284,7 +288,8 @@ def get_agents_raster(
     ymin, ymax = y_range
     width, height = raster_shape
 
-    agents_raster = np.zeros(raster_shape, dtype=np.float32)
+    if agents_raster == None:
+        agents_raster = np.zeros(raster_shape, dtype=np.float32)
 
     ego_to_global = ego_state.rear_axle.as_matrix_3d()
     global_to_ego = np.linalg.inv(ego_to_global)  # type: ignore
@@ -341,6 +346,7 @@ def get_ego_raster(
     ego_width_pixels: float,
     ego_front_length_pixels: float,
     ego_rear_length_pixels: float,
+    ego_raster: npt.NDArray[np.float32] = None,
 ) -> npt.NDArray[np.float32]:
     """
     Constructs the ego layer of the raster by drawing a polygon of the ego's extent in the middle of the grid.
@@ -351,7 +357,9 @@ def get_ego_raster(
     :param ego_rear_length_pixels: distance between the rear axle and the rear bumper in pixels.
     :return: constructed ego raster layer.
     """
-    ego_raster = np.zeros(raster_shape, dtype=np.float32)
+
+    if ego_raster == None:
+        ego_raster = np.zeros(raster_shape, dtype=np.float32)
 
     # Construct a rectangle representing the ego vehicle in the center of the raster.
     map_x_center = int(raster_shape[1] * 0.5)
@@ -371,6 +379,7 @@ def get_baseline_paths_raster(
     raster_shape: Tuple[int, int],
     resolution: float,
     baseline_path_thickness: int = 1,
+    baseline_paths_raster: npt.NDArray[np.float32] = None,
 ) -> npt.NDArray[np.float32]:
     """
     Constructs the baseline paths layer by converting vector map to raster map.
@@ -391,7 +400,9 @@ def get_baseline_paths_raster(
             {y_range[1] - y_range[0]} and height: {x_range[1] - x_range[0]}')
 
     radius = (x_range[1] - x_range[0]) / 2
-    baseline_paths_raster = np.zeros(raster_shape, dtype=np.float32)
+
+    if baseline_paths_raster == None:
+        baseline_paths_raster = np.zeros(raster_shape, dtype=np.float32)
 
     for map_features in ['LANE', 'LANE_CONNECTOR']:
         baseline_paths_coords = _get_layer_coords(
@@ -412,6 +423,7 @@ def get_ego_with_past_raster(
     y_range: Tuple[float, float],
     raster_shape: Tuple[int, int],
     polygon_bit_shift: int = 9,
+    ego_raster: npt.NDArray[np.float32] = None,
 ) -> npt.NDArray[np.float32]:
     """
     Constructs the agents layer of the raster by transforming all detected boxes around the agent
@@ -488,6 +500,7 @@ def get_baseline_paths_raster_with_filter(
     resolution: float,
     filter: List[str],
     baseline_path_thickness: int = 1,
+    baseline_paths_raster: npt.NDArray[np.float32] = None
 ) -> npt.NDArray[np.float32]:
     """
     Constructs the baseline paths layer by converting vector map to raster map.
@@ -508,9 +521,9 @@ def get_baseline_paths_raster_with_filter(
             {y_range[1] - y_range[0]} and height: {x_range[1] - x_range[0]}')
 
     radius = (x_range[1] - x_range[0]) / 2
-    baseline_paths_raster = np.zeros(raster_shape, dtype=np.float32)
 
-
+    if baseline_paths_raster == None:
+        baseline_paths_raster = np.zeros(raster_shape, dtype=np.float32)
 
     for map_features in ['LANE', 'LANE_CONNECTOR']:
         baseline_paths_coords = _get_layer_coords_with_filter(

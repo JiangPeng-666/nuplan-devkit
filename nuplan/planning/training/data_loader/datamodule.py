@@ -151,7 +151,7 @@ class DataModule(pl.LightningDataModule):
             raise RuntimeError('Data module has not been setup, call "setup()"')
 
         return torch.utils.data.DataLoader(
-            dataset=self._train_set, **self._dataloader_params, shuffle=True, collate_fn=FeatureCollate()
+            dataset=self._train_set, **self._dataloader_params, collate_fn=FeatureCollate()
         )
 
     def val_dataloader(self) -> torch.utils.data.DataLoader:
