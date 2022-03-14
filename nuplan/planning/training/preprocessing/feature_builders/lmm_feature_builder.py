@@ -262,6 +262,7 @@ class LMMFeatureBuilder(AbstractFeatureBuilder):
         # cv2.imwrite("/home/fla/nuplan-devkit/sample/test77.png", baseline_paths_rasters[2])
 
         return Raster(data=res_image)
+        #return res_image
 
     def merge_with_fade(self, images: List[npt.NDArray[np.float32]]):
         fade_rate = 10

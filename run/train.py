@@ -27,7 +27,7 @@ cfg = hydra.compose(config_name=CONFIG_NAME, overrides=[
     'scenario_builder.nuplan.scenario_filter.subsample_ratio=0.01',  # subsample scenarios from 20Hz to 1Hz
     'lightning.trainer.params.accelerator=ddp_spawn',  # ddp is not allowed in interactive environment, using ddp_spawn instead - this can bottleneck the data pipeline, it is recommended to run training outside the notebook
     'lightning.trainer.params.max_epochs=100',
-    'data_loader.params.batch_size=512',
+    'data_loader.params.batch_size=8',
     'data_loader.params.num_workers=8',
     '+data_loader.params.shuffle=True',
     #'worker=sequential',

@@ -119,6 +119,9 @@ class RasterVisualizationCallback(pl.Callback):
         # else:
         #     return
         if 'raster' in features:
+
+            return
+            
             if 'trajectories' in predictions:
                 image_batch = self._get_raster_images_from_batch_multi(
                     features['raster'], targets['trajectory'], predictions['trajectories'])
