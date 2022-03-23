@@ -1,3 +1,5 @@
+from math import ceil
+import os
 import random
 from typing import Any, List, Optional
 
@@ -11,8 +13,10 @@ from nuplan.planning.training.preprocessing.feature_collate import FeatureCollat
 from nuplan.planning.training.preprocessing.features.raster import Raster
 from nuplan.planning.training.preprocessing.features.trajectories import Trajectories
 from nuplan.planning.training.preprocessing.features.trajectory import Trajectory
-from nuplan.planning.training.visualization.raster_visualization import get_raster_with_trajectories_as_rgb
+from nuplan.planning.training.visualization.raster_visualization import get_raster_with_trajectories_as_rgb, get_raster_with_trajectories_as_rgb_from_rgb
+from pytorch_lightning.utilities.types import STEP_OUTPUT
 
+import cv2
 
 class RasterVisualizationCallback(pl.Callback):
     """
@@ -119,8 +123,6 @@ class RasterVisualizationCallback(pl.Callback):
         # else:
         #     return
         if 'raster' in features:
-
-            return
             
             if 'trajectories' in predictions:
                 image_batch = self._get_raster_images_from_batch_multi(
@@ -183,13 +185,12 @@ class RasterVisualizationCallback(pl.Callback):
         images = list()
 
         for feature, target, prediction in zip(features.data, targets.data, predictions.trajectories[0].data):
-            raster = Raster.from_feature_tensor(feature)
             target_trajectory = Trajectory(target)
             predicted_trajectory = Trajectory(prediction)
 
-            image = get_raster_with_trajectories_as_rgb(
+            image = get_raster_with_trajectories_as_rgb_from_rgb(
                 self.pixel_size,
-                raster,
+                feature.permute(1,2,0).numpy(),
                 target_trajectory,
                 predicted_trajectory,
             )
@@ -264,3 +265,53 @@ class RasterVisualizationCallback(pl.Callback):
             trainer.global_step,  # type: ignore
             'val',
         )
+
+    def _save_image_batch(self, image_batch, save_dir, padding):
+        batch_size, w, h, c = image_batch.shape
+        col = ceil(batch_size**0.5)
+        row = ceil(batch_size/col)
+        
+        res_image = np.zeros(((padding+w)*col+padding,(padding+h)*row+padding,3))
+
+        for id, image in enumerate(image_batch):
+            i = id%col
+            j = int(id/col)
+            res_image[(padding+w)*i+padding:(padding+w)*(i+1),(padding+h)*j+padding:(padding+h)*(j+1),:] = image
+        
+        cv2.imwrite(save_dir,res_image)
+
+    def on_val_batch_end(
+        self,
+        trainer: 'pl.Trainer',
+        pl_module: 'pl.LightningModule',
+        outputs: STEP_OUTPUT,
+        batch: Any,
+        batch_idx: int,
+        dataloader_idx: int,
+    ) -> None:
+        """Called when the train batch ends."""
+        features: FeaturesType = batch[0]
+        targets: TargetsType = batch[1]
+        predictions = self._infer_model(pl_module, move_features_type_to_device(features, pl_module.device))
+        image_batch = self._get_raster_images_from_batch_multi(features['raster'], targets['trajectory'], predictions['trajectories'])
+
+        save_dir = os.path.join("/home/fla/nuplan-devkit/exp/test_output", "val_{:09d}.png".format(batch_idx))
+        self._save_image_batch(image_batch, save_dir, padding = 5)
+
+    def on_train_batch_end(
+        self,
+        trainer: 'pl.Trainer',
+        pl_module: 'pl.LightningModule',
+        outputs: STEP_OUTPUT,
+        batch: Any,
+        batch_idx: int,
+        dataloader_idx: int,
+    ) -> None:
+        """Called when the train batch ends."""
+        features: FeaturesType = batch[0]
+        targets: TargetsType = batch[1]
+        predictions = self._infer_model(pl_module, move_features_type_to_device(features, pl_module.device))
+        image_batch = self._get_raster_images_from_batch_multi(features['raster'], targets['trajectory'], predictions['trajectories'])
+
+        save_dir = os.path.join("/home/fla/nuplan-devkit/exp/test_output", "train_{:09d}.png".format(batch_idx))
+        self._save_image_batch(image_batch, save_dir, padding = 5)

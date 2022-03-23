@@ -46,3 +46,19 @@
 - Trajectory: 预测输出
   - position_x, position_y, heading: FeatureDataType, 轨迹各点坐标及方向
   - terminal_position, terminal_heading: FeatureDataType, 最终点坐标及方向
+
+
+
+Input:
+
+scenario_builder = build_scenario_builder(cfg)
+
+scenarios = scenario_builder.get_scenarios(scenario_filter, worker)
+
+Dataset = ScenarioDataset(scenarios)
+
+Dataloader = torch.Dataloader(Dataset)
+
+for id, data in enumerate(Dataloader):
+  y = model(data)
+  visualize(y)

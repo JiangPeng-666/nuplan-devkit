@@ -25,3 +25,4 @@ cache_dir: ${oc.env:NUPLAN_EXP_ROOT}/cache        # directory to store all prepr
 force_feature_computation: false                  # Even if cache exists, recompute features
 resume_training: false   # load the model from the last epoch and resume training
 cleanup_cache: false    # cleanup cached data in the cache_dir, this ensures that new data are generated if the same cache_dir is passed
+checkpoint_path: None

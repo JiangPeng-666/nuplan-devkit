@@ -62,7 +62,7 @@ def main(cfg: DictConfig) -> Optional[TrainingEngine]:
     elif cfg.py_func == "test":
         # Build training engine
         engine = build_training_engine(cfg, worker, scenario_builder)
-
+        
         # Test model
         logger.info('Starting testing...')
         engine.trainer.test(model=engine.model, datamodule=engine.datamodule)

@@ -91,12 +91,15 @@ def build_lightning_module(cfg: DictConfig, nn_model: NNModule) -> pl.LightningM
     metrics = build_training_metrics(cfg)
 
     # Create the complete Module
-    model = PlanningModule(
-        model=nn_model,
-        objectives=objectives,
-        metrics=metrics,
-        **cfg.lightning.hparams,
-    )
+    if cfg.resume_training:
+        model = PlanningModule.load_from_checkpoint(cfg.checkpoint_path, model=nn_model)
+    else:
+        model = PlanningModule(
+            model=nn_model,
+            objectives=objectives,
+            metrics=metrics,
+            **cfg.lightning.hparams,
+        )
 
     return cast(pl.LightningModule, model)
 
