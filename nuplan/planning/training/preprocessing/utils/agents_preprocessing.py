@@ -132,7 +132,34 @@ def build_ego_features(ego_trajectory: List[EgoState], reverse: bool = False) ->
     ego_poses = [ego_state.rear_axle for ego_state in ego_trajectory]
     ego_relative_poses = convert_absolute_to_relative_poses(anchor_ego_state.rear_axle, ego_poses)
     return ego_relative_poses
+    
+def build_ego_full_features(ego_trajectory: List[EgoState], reverse: bool = False) -> FeatureDataType:
+    """
+    Build agent features from the ego and agents trajectory
 
+    :param ego_trajectory: ego trajectory comprising of EgoState [num_frames]
+    :param reverse: if True, the last element in the list will be considered as the present ego state
+    :return: Tuple[ego_features, agent_features]
+             ego_features: <np.ndarray: num_frames, 3>
+                         The num_frames includes both present and past/future frames.
+                         The last dimension is the ego pose (x, y, heading) at time t.
+    """
+    if reverse:
+        anchor_ego_state = ego_trajectory[-1]
+    else:
+        anchor_ego_state = ego_trajectory[0]
+    ego_dynamic = np.array([anchor_ego_state.dynamic_car_state.acceleration, anchor_ego_state.dynamic_car_state.speed])
+
+    ego_poses = [ego_state.rear_axle for ego_state in ego_trajectory][-1]
+    # [-1] means taking the latest array as cur state
+    # ego_relative_poses = convert_absolute_to_relative_poses(anchor_ego_state.rear_axle, ego_poses)[-1] 
+
+    ego_absolute_poses = np.asarray([ego_poses.serialize()]).astype(np.float32) # 1*3, x, y, heading
+    tmp = ego_absolute_poses[0]
+
+    ego_feature = np.hstack((ego_absolute_poses[0], ego_dynamic))
+
+    return ego_feature
 
 def filter_agents(agent_trajectories: List[List[Box3D]], reverse: bool = False) -> List[List[Box3D]]:
     """

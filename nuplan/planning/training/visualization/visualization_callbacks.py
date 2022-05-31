@@ -315,3 +315,21 @@ class RasterVisualizationCallback(pl.Callback):
 
         save_dir = os.path.join("/home/fla/nuplan-devkit/exp/test_output", "train_{:09d}.png".format(batch_idx))
         self._save_image_batch(image_batch, save_dir, padding = 5)
+
+    def on_test_batch_end(
+        self,
+        trainer: 'pl.Trainer',
+        pl_module: 'pl.LightningModule',
+        outputs: STEP_OUTPUT,
+        batch: Any,
+        batch_idx: int,
+        dataloader_idx: int,
+    ) -> None:
+        """Called when the train batch ends."""
+        features: FeaturesType = batch[0]
+        targets: TargetsType = batch[1]
+        predictions = self._infer_model(pl_module, move_features_type_to_device(features, pl_module.device))
+        image_batch = self._get_raster_images_from_batch_multi(features['raster'], targets['trajectory'], predictions['trajectories'])
+
+        save_dir = os.path.join("/home/fla/nuplan-devkit/exp/test_output", "test_{:09d}.png".format(batch_idx))
+        self._save_image_batch(image_batch, save_dir, padding = 5)

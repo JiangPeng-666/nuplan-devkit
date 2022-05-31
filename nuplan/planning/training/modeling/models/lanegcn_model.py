@@ -6,7 +6,8 @@ from nuplan.planning.training.modeling.models.lanegcn_utils import Actor2ActorAt
     LinearWithGroupNorm
 from nuplan.planning.training.modeling.nn_model import NNModule
 from nuplan.planning.training.modeling.types import FeaturesType, TargetsType
-from nuplan.planning.training.preprocessing.feature_builders.agents_feature_builder import AgentsFeatureBuilder
+# from nuplan.planning.training.preprocessing.feature_builders.agents_feature_builder import AgentsFeatureBuilder
+from nuplan.planning.training.preprocessing.feature_builders.epsilon_agent_feature_builder import AgentsFeatureBuilder
 from nuplan.planning.training.preprocessing.feature_builders.vector_map_feature_builder import VectorMapFeatureBuilder
 from nuplan.planning.training.preprocessing.features.agents import AgentsFeature
 from nuplan.planning.training.preprocessing.features.trajectory import Trajectory

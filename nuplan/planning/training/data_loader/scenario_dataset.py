@@ -42,7 +42,8 @@ class ScenarioDataset(torch.utils.data.Dataset):
         features = {key: value.to_feature_tensor() for key, value in features.items()}
         targets = {key: value.to_feature_tensor() for key, value in targets.items()}
 
-        return features, targets
+        return features, targets, scenario
+        # return features, targets
 
     def __len__(self) -> int:
         """

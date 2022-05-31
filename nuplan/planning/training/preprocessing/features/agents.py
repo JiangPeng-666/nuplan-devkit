@@ -45,7 +45,9 @@ class AgentsFeature(AbstractModelFeature):
         if len(self.ego) == 0:
             raise AssertionError("Batch size has to be > 0!")
 
-        if self.ego[0].ndim != 2:
+        # modified by jiangpeng for epsilon
+        # if self.ego[0].ndim != 2:
+        if self.ego[0].ndim != 2 and self.ego[0].ndim != 1:
             raise AssertionError("Ego feature samples does not conform to feature dimensions! "
                                  f"Got ndim: {self.ego[0].ndim} , expected 2 [num_frames, 3]")
 
